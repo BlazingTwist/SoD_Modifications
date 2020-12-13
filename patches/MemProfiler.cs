@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Profiling;
+using System.Text.RegularExpressions;
 
 // Token: 0x02000147 RID: 327
 public class MemoryProfiler
@@ -436,7 +437,7 @@ public class MemoryProfiler
 					quasiIndex++;
 				}
 			}else{
-				foreach (FieldInfo fieldInfo in type.GetFields())
+				foreach (FieldInfo fieldInfo in type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
 				{
 					object fieldValue = fieldInfo.GetValue(value);
 					MemoryProfiler.ObjectContentInfo fieldContentInfo = new MemoryProfiler.ObjectContentInfo(fieldInfo.FieldType.Name, fieldInfo.Name, fieldValue);
@@ -495,12 +496,13 @@ public class MemoryProfiler
 		int count = mListDef.Count;
 		bool doReflect = false;
 		string filterText = "";
+		string[] reflectPath = null;
 		if (!string.IsNullOrEmpty(this.mFilter_Text))
 		{
 			doReflect = this.mFilter_Text.EndsWith("@reflect");
 			if (doReflect)
 			{
-				filterText = this.mFilter_Text.Replace("@reflect", "").ToLowerInvariant();
+				reflectPath = this.mFilter_Text.Replace("@reflect", "").ToLowerInvariant().Split(new char[]{'.'}, StringSplitOptions.RemoveEmptyEntries);
 			}
 			else
 			{
@@ -512,9 +514,9 @@ public class MemoryProfiler
 			MemoryProfiler.ObjMemDef objMemDef = mListDef[i];
 			if (doReflect)
 			{
-				if (objMemDef._Name.ToLowerInvariant().Equals(filterText) || objMemDef._ObjType.ToLowerInvariant().Equals(filterText))
+				if (objMemDef._Name.ToLowerInvariant().Equals(reflectPath[0]) || objMemDef._ObjType.ToLowerInvariant().Equals(reflectPath[0]))
 				{
-					this.RenderContentInfoRecursive(objMemDef.GetContentInfo(), 0, 20f, ref renderedLines, viewportStartLine, viewportEndLine, ref extraSpacingLines, lineHeight);
+					this.RenderContentInfoRecursive(objMemDef.GetContentInfo(), 0, 20f, ref renderedLines, viewportStartLine, viewportEndLine, ref extraSpacingLines, lineHeight, reflectPath);
 				}
 			}
 			else if ((this.mFilter_ShowDependencies || !objMemDef._IsADependency) && (filterText.Equals("") || objMemDef._Name.ToLowerInvariant().Contains(filterText) || objMemDef._ObjType.ToLowerInvariant().Contains(filterText)))
@@ -590,7 +592,7 @@ public class MemoryProfiler
 	}
 
 	// Token: 0x0600806E RID: 32878
-	private void RenderContentInfoRecursive(MemoryProfiler.ObjectContentInfo content, int depth, float spaceWidth, ref int renderedLines, int viewPortStartLine, int viewPortEndLine, ref int skippedLines, float lineHeight)
+	private void RenderContentInfoRecursive(MemoryProfiler.ObjectContentInfo content, int depth, float spaceWidth, ref int renderedLines, int viewPortStartLine, int viewPortEndLine, ref int skippedLines, float lineHeight, string[] reflectPath)
 	{
 		if (content == null)
 		{
@@ -640,11 +642,64 @@ public class MemoryProfiler
 		renderedLines++;
 		if (content.contentInfo != null && !content.isFolded)
 		{
+			string pathTypeString = null;
+			string pathNameString = null;
+			if(reflectPath.Length > (depth + 1)) {
+				string pathString = reflectPath[depth + 1];
+				if(pathString.EndsWith("@type")) {
+					pathTypeString = pathString.Substring(0, pathString.Length - "@type".Length);
+				} else {
+					pathNameString = pathString;
+				}
+
+				if(string.Equals(pathTypeString, "*")) {
+					pathTypeString = null;
+				}
+				if(string.Equals(pathNameString, "*")) {
+					pathNameString = null;
+				}
+			}
 			foreach (MemoryProfiler.ObjectContentInfo innerContent in content.contentInfo)
 			{
-				this.RenderContentInfoRecursive(innerContent, depth + 1, spaceWidth, ref renderedLines, viewPortStartLine, viewPortEndLine, ref skippedLines, lineHeight);
+				if(pathTypeString != null && !InputPartiallyMatches(pathTypeString, innerContent.typeString)) {
+					continue;
+				}
+				if(pathNameString != null && !InputPartiallyMatches(pathNameString, innerContent.nameString)) {
+					continue;
+				}
+				this.RenderContentInfoRecursive(innerContent, depth + 1, spaceWidth, ref renderedLines, viewPortStartLine, viewPortEndLine, ref skippedLines, lineHeight, reflectPath);
 			}
 		}
+	}
+
+	/// <summary>
+	/// checks whether the inputString contains characters in the same sequence as the targetString
+	/// </summary>
+	/// <param name="input"></param>
+	/// <param name="target"></param>
+	/// <returns></returns>
+	public static bool InputPartiallyMatches(string input, string target) {
+		char[] inputChars = input.ToCharArray();
+		int inputCharsLength = inputChars.GetLength(0);
+		char[] targetChars = target.ToCharArray();
+		int targetCharsLength = targetChars.GetLength(0);
+		int targetIndex = 0;
+		for(int inputIndex = 0; inputIndex < inputCharsLength; inputIndex++) {
+			char inputChar = char.ToUpperInvariant(inputChars[inputIndex]);
+			while(inputChar != char.ToUpperInvariant(targetChars[targetIndex])) {
+				targetIndex++;
+				if(targetIndex >= targetCharsLength) {
+					// unable to find matching character in target
+					return false;
+				}
+			}
+			targetIndex++;
+			if(targetIndex >= targetCharsLength && (inputIndex + 1) < inputCharsLength) {
+				// reached end of target string, but still have input chars to check
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// Token: 0x04000784 RID: 1924
@@ -777,6 +832,8 @@ public class MemoryProfiler
 		// Token: 0x06007E00 RID: 32256
 		public ObjectContentInfo(string typeName, string displayName, object value)
 		{
+			this.typeString = typeName;
+			this.nameString = displayName;
 			this.typeText = "type: " + typeName;
 			this.nameText = "name: " + displayName;
 			this.valueText = ((value == null) ? "null" : value.ToString());
@@ -786,10 +843,10 @@ public class MemoryProfiler
 		// Token: 0x040082F4 RID: 33524
 		public List<MemoryProfiler.ObjectContentInfo> contentInfo;
 
-		// Token: 0x04008426 RID: 33830
+		public string typeString;
 		public string typeText;
 
-		// Token: 0x04008427 RID: 33831
+		public string nameString;
 		public string nameText;
 
 		// Token: 0x04008428 RID: 33832
