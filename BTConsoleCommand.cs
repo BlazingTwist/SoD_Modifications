@@ -59,31 +59,61 @@ public class BTConsoleCommand
 			// input is too long to ever match this
 			return 0;
 		}
-		int searchableKeywords = Mathf.Min(namespaceCount, inputCount);
-		for(int index = 0; index < searchableKeywords; index++) {
-			string inputString = input[index];
-			string namespaceString = commandNamespace[index];
-			if(!InputPartiallyMatches(inputString, namespaceString)) {
-				return 0;
+
+		int consumedNamespaceKeywords = 0;
+		for(int inputIndex = 0, namespaceIndex = 0; inputIndex < inputCount; inputIndex++) {
+			int remainingInputCount = inputCount - inputIndex;
+			string inputString = input[inputIndex];
+
+			while(namespaceIndex < namespaceCount) {
+				if(InputPartiallyMatches(inputString, commandNamespace[namespaceIndex])) {
+					remainingInputCount--;
+					namespaceIndex++;
+					consumedNamespaceKeywords++;
+					break;
+				}
+				namespaceIndex++;
+			}
+
+			if(namespaceIndex >= namespaceCount) {
+				if(remainingInputCount > totalArgumentCount) {
+					return 0;
+				} else {
+					return consumedNamespaceKeywords;
+				}
 			}
 		}
-		return searchableKeywords;
+		// reached end of input
+		return consumedNamespaceKeywords;
 	}
 
 	public string Autocomplete(List<string> input) {
 		int inputCount = input.Count;
 		int namespaceCount = commandNamespace.Count;
-		string namespaceToString = String.Join(" ", commandNamespace);
-		if(inputCount <= namespaceCount) {
-			// namespace incomplete, just complete namespace
-			return namespaceToString;
-		} else {
-			StringBuilder resultBuilder = new StringBuilder(namespaceToString);
-			for(int index = namespaceCount; index < inputCount; index++) {
-				resultBuilder.Append(input[index]);
+		StringBuilder resultBuilder = new StringBuilder();
+
+		int inputConsumptionCount = 0;
+		for(int namespaceIndex = 0; namespaceIndex < namespaceCount; namespaceIndex++) {
+			string namespaceString = commandNamespace[namespaceIndex];
+
+			if(namespaceIndex != 0) {
+				resultBuilder.Append(" ");
 			}
-			return resultBuilder.ToString();
+
+			if(inputConsumptionCount < inputCount) {
+				string nextInputString = input[inputConsumptionCount];
+				if(InputPartiallyMatches(nextInputString, namespaceString)) {
+					inputConsumptionCount++;
+				}
+			}
+			resultBuilder.Append(namespaceString);
 		}
+
+		for(int inputIndex = inputConsumptionCount; inputIndex < inputCount; inputIndex++) {
+			resultBuilder.Append(" ").Append(input[inputIndex]);
+		}
+
+		return resultBuilder.ToString();
 	}
 
 	public bool IsFullNamespaceMatching(List<string> input) {

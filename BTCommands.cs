@@ -60,13 +60,7 @@ public class BTCommands
 		BTCommands.BTHelpCommand.Register();
 		BTCommands.BTIncredibleMachineLoad.Register();
 		BTCommands.BTIncredibleMachineUnlock.Register();
-		BTCommands.BTInventoryAdd.Register();
-		BTCommands.BTInventoryAddBattleItem.Register();
-		BTCommands.BTInventoryAddRange.Register();
-		BTCommands.BTInventoryClear.Register();
-		BTCommands.BTInventoryRemove.Register();
-		BTCommands.BTInventorySave.Register();
-		BTCommands.BTInventoryShowID.Register();
+		BTCommands.BTInventoryCommands.Register();
 		BTCommands.BTJoystickSetup.Register();
 		BTCommands.BTLabExperimentGet.Register();
 		BTCommands.BTLabExperimentSet.Register();
@@ -1941,8 +1935,330 @@ public class BTCommands
 		}
 	}
 
-	public class BTInventoryEventHandler
+	public class BTInventoryCommands
 	{
+		public static void Register() {
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "clear" },
+				new BTNoArgsInput(),
+				"clears the avatar's inventory",
+				OnExecuteInventoryClear
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "save" },
+				new BTNoArgsInput(),
+				"saves the avatar's inventory",
+				OnExecuteInventorySave
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "remove" },
+				new BTInventoryRemoveInput(),
+				"removes an Item from the Inventory",
+				OnExecuteInventoryRemove
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "add" },
+				new BTInventoryAddInput(),
+				"adds an Item to the Inventory",
+				OnExecuteInventoryAdd
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "add", "range" },
+				new BTInventoryAddRangeInput(),
+				"adds one item of each itemID in the specified range to the inventory",
+				OnExecuteInventoryAddRange
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "add", "battle", "item" },
+				new BTInventoryAddBattleItemInput(),
+				"adds 'BattleItems' to the inventory",
+				OnExecuteInventoryAddBattleItem
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "ItemID" },
+				new BTInventoryShowIDInput(),
+				"shows / hides ItemIDs in the Inventory",
+				OnExecuteInventoryItemID
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Inventory", "dumpItemData" },
+				new BTInventoryDumpItemDataInput(),
+				"tries to load the specified item IDs and dumps their data to the logFile (as errors)",
+				OnExecuteInventoryDumpItemData
+			));
+		}
+
+		public static void OnExecuteInventoryClear(BTConsoleCommand.BTCommandInput input) {
+			CommonInventoryData.pInstance.Clear();
+			BTConsole.WriteLine("Inventory cleared.");
+		}
+
+		public static void OnExecuteInventorySave(BTConsoleCommand.BTCommandInput input) {
+			CommonInventoryData.pInstance.Save(
+				new InventorySaveEventHandler(InventorySaveCallback),
+				null,
+				null);
+		}
+
+		public static void OnExecuteInventoryRemove(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryRemoveInput cmdInput = (BTInventoryRemoveInput)input;
+			CommonInventoryData.pInstance.RemoveItem(
+				cmdInput.itemID,
+				cmdInput.updateServer,
+				cmdInput.quantity,
+				null);
+			BTConsole.WriteLine("Removed ItemID: " + cmdInput.itemID + " | Quantity: " + cmdInput.quantity);
+		}
+
+		public static void OnExecuteInventoryAdd(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryAddInput cmdInput = (BTInventoryAddInput)input;
+			CommonInventoryData.pInstance.AddItem(
+				cmdInput.itemID,
+				cmdInput.updateServer,
+				new InventoryItemDataEventHandler(InventoryItemDataCallback),
+				null,
+				cmdInput.quantity);
+		}
+
+		public static void OnExecuteInventoryAddRange(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryAddRangeInput cmdInput = (BTInventoryAddRangeInput)input;
+			bool isReverse = (cmdInput.idStart > cmdInput.idEnd);
+			int start = isReverse ? cmdInput.idEnd : cmdInput.idStart;
+			int end = isReverse ? cmdInput.idStart : cmdInput.idEnd;
+			for(int itemID = start; itemID <= end; itemID++) {
+				CommonInventoryData.pInstance.AddItem(
+					itemID,
+					cmdInput.updateServer,
+					new InventoryItemDataEventHandler(InventoryItemDataCallback),
+					null);
+			}
+		}
+
+		public static void OnExecuteInventoryAddBattleItem(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryAddBattleItemInput cmdInput = (BTInventoryAddBattleItemInput)input;
+			AddBattleItemsRequest request = new AddBattleItemsRequest();
+			List<BattleItemTierMap> list = new List<BattleItemTierMap>();
+			BattleItemTierMap battleItemTierMap = new BattleItemTierMap();
+			battleItemTierMap.ItemID = cmdInput.itemID;
+			battleItemTierMap.Quantity = new int?(cmdInput.quantity);
+			if(cmdInput.itemTier != 0) {
+				battleItemTierMap.Tier = new ItemTier?((ItemTier)cmdInput.itemTier);
+			}
+			list.Add(battleItemTierMap);
+			request.BattleItemTierMaps = list;
+			WsWebService.BattleReadyItems(
+				request,
+				new WsServiceEventHandler(AddBattleItemCallback),
+				null);
+		}
+
+		public static void OnExecuteInventoryItemID(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryShowIDInput cmdInput = (BTInventoryShowIDInput)input;
+			if(cmdInput.show == null) {
+				CommonInventoryData.pShowItemID = !CommonInventoryData.pShowItemID;
+				string showString = CommonInventoryData.pShowItemID ? "shown" : "hidden";
+				BTConsole.WriteLine("ItemIDs are now " + showString);
+			} else {
+				bool show = (bool)cmdInput.show;
+				string showString = show ? "shown" : "hidden";
+				if(CommonInventoryData.pShowItemID == show) {
+					BTConsole.WriteLine("ItemIDs are already " + showString);
+				} else {
+					CommonInventoryData.pShowItemID = show;
+					BTConsole.WriteLine("ItemIDs are now " + showString);
+				}
+			}
+		}
+
+		public static void OnExecuteInventoryDumpItemData(BTConsoleCommand.BTCommandInput input) {
+			BTInventoryDumpItemDataInput cmdInput = (BTInventoryDumpItemDataInput)input;
+
+			bool isReverse = (cmdInput.idStart > cmdInput.idEnd);
+			int start = isReverse ? cmdInput.idEnd : cmdInput.idStart;
+			int end = isReverse ? cmdInput.idStart : cmdInput.idEnd;
+
+			ItemDataEventHandler callback = new ItemDataEventHandler(InventoryDumpItemDataCallback);
+			BTInventoryDumpItemDataProgress progress = new BTInventoryDumpItemDataProgress(start, end);
+
+			for(int itemID = start; itemID <= end; itemID++) {
+				ItemData.Load(itemID, callback, progress);
+			}
+		}
+
+		public static void InventoryDumpItemDataCallback(int itemID, ItemData itemData, object inUserData) {
+			if(inUserData == null) {
+				BTConsole.WriteLine("  error - callback for ItemDump went missing, cannot dump!");
+				return;
+			}
+			BTInventoryDumpItemDataProgress progress = (BTInventoryDumpItemDataProgress)inUserData;
+			if(itemData == null || itemData.ItemID != itemID) {
+				BTConsole.WriteLine("  itemID: " + itemID + " yielded no ItemData");
+				progress.AddLoadedItem(itemID, null);
+			} else {
+				BTConsole.WriteLine("  loaded item for itemID: " + itemID);
+				progress.AddLoadedItem(itemID, itemData);
+			}
+		}
+
+		public class BTInventoryDumpItemDataProgress
+		{
+			public Dictionary<int, ItemData> loadedItemData;
+			public int startID;
+			public int endID;
+
+			public BTInventoryDumpItemDataProgress(int startID, int endID) {
+				loadedItemData = new Dictionary<int, ItemData>();
+				this.startID = startID;
+				this.endID = endID;
+			}
+
+			public void AddLoadedItem(int itemID, ItemData itemData) {
+				loadedItemData[itemID] = itemData;
+				if(AllItemsLoaded()) {
+					OnAllItemsLoaded();
+				}
+			}
+
+			public bool AllItemsLoaded() {
+				return loadedItemData.Count >= (endID - startID + 1);
+			}
+
+			public void OnAllItemsLoaded() {
+				BTConsole.WriteLine("All requested items loaded!");
+				StringBuilder resultBuilder = new StringBuilder();
+				resultBuilder.Append("ItemID")
+					.Append("\t").Append("ItemName")
+					.Append("\t").Append("AssetName")
+					.Append("\t").Append("IconName")
+					.Append("\t").Append("Rollover.DialogName")
+					.Append("\t").Append("Rollover.Bundle")
+					.Append("\t").Append("Description")
+					.Append("\t").Append("Geometry2")
+					.Append("\t").Append("TextureCount")
+					.Append("\t").Append("Texture.TextureName")
+					.Append("\t").Append("Texture.TextureTypeName")
+					.Append("\t").Append("Texture.OffsetX")
+					.Append("\t").Append("Texture.OffsetY")
+					.Append("\t").Append("CategoryCount")
+					.Append("\t").Append("Category.CategoryID")
+					.Append("\t").Append("Category.CategoryName")
+					.Append("\t").Append("Category.IconName")
+					.Append("\t").Append("RelationshipCount")
+					.Append("\t").Append("Relationship.Type")
+					.Append("\t").Append("Relationship.ItemID")
+					.Append("\t").Append("RankID")
+					.Append("\t").Append("Locked")
+					.Append("\t").Append("Cost")
+					.Append("\t").Append("Uses")
+					.Append("\t").Append("InventoryMax")
+					.Append("\t").Append("CreativePoints");
+				for(int i = startID; i <= endID; i++) {
+					if(!loadedItemData.ContainsKey(i)) {
+						BTConsole.WriteLine("ERROR - itemData for ID: " + i + " was never loaded!");
+						continue;
+					}
+					ItemData itemData = loadedItemData[i];
+					if(itemData == null) {
+						continue;
+					}
+					resultBuilder.Append("\n");
+					resultBuilder.Append(itemData.ItemID);
+					resultBuilder.Append("\t").Append(itemData.ItemName);
+					resultBuilder.Append("\t").Append(itemData.AssetName);
+					resultBuilder.Append("\t").Append(itemData.IconName);
+					ItemDataRollover rollover = itemData.Rollover;
+					if(rollover == null) {
+						resultBuilder.Append("\t\t");
+					} else {
+						resultBuilder.Append("\t").Append(rollover.DialogName);
+						resultBuilder.Append("\t").Append(rollover.Bundle);
+					}
+					resultBuilder.Append("\t").Append(itemData.Description);
+					resultBuilder.Append("\t").Append(itemData.Geometry2);
+					if(itemData.Texture == null) {
+						resultBuilder.Append("\t").Append("0");
+						resultBuilder.Append("\t\t\t\t");
+					} else {
+						resultBuilder.Append("\t").Append(itemData.Texture.Length);
+						string textureNames = "";
+						string textureTypeNames = "";
+						string offsetX = "";
+						string offsetY = "";
+						for(int index = 0; index < itemData.Texture.Length; index++) {
+							ItemDataTexture texture = itemData.Texture[index];
+							if(index == 0) {
+								textureNames += texture.TextureName;
+								textureTypeNames += texture.TextureTypeName;
+								offsetX += (texture.OffsetX == null) ? "null" : texture.OffsetX.Value.ToString();
+								offsetY += (texture.OffsetY == null) ? "null" : texture.OffsetY.Value.ToString();
+							} else {
+								textureNames += (", " + texture.TextureName);
+								textureTypeNames += (", " + texture.TextureTypeName);
+								offsetX += (", " + ((texture.OffsetX == null) ? "null" : texture.OffsetX.Value.ToString()));
+								offsetY += (", " + ((texture.OffsetY == null) ? "null" : texture.OffsetY.Value.ToString()));
+							}
+						}
+						resultBuilder.Append("\t").Append(textureNames);
+						resultBuilder.Append("\t").Append(textureTypeNames);
+						resultBuilder.Append("\t").Append(offsetX);
+						resultBuilder.Append("\t").Append(offsetY);
+					}
+					if(itemData.Category == null) {
+						resultBuilder.Append("\t").Append("0");
+						resultBuilder.Append("\t\t\t");
+					} else {
+						resultBuilder.Append("\t").Append(itemData.Category.Length);
+						string categoryIDs = "";
+						string categoryNames = "";
+						string iconNames = "";
+						for(int index = 0; index < itemData.Category.Length; index++) {
+							ItemDataCategory category = itemData.Category[index];
+							if(index == 0) {
+								categoryIDs += category.CategoryId;
+								categoryNames += category.CategoryName;
+								iconNames += category.IconName;
+							} else {
+								categoryIDs += (", " + category.CategoryId);
+								categoryNames += (", " + category.CategoryName);
+								iconNames += (", " + category.IconName);
+							}
+						}
+						resultBuilder.Append("\t").Append(categoryIDs);
+						resultBuilder.Append("\t").Append(categoryNames);
+						resultBuilder.Append("\t").Append(iconNames);
+					}
+					if(itemData.Relationship == null) {
+						resultBuilder.Append("\t").Append("0");
+						resultBuilder.Append("\t\t");
+					} else {
+						resultBuilder.Append("\t").Append(itemData.Relationship.Length);
+						string relationshipTypes = "";
+						string relationshipItemIDs = "";
+						for(int index = 0; index < itemData.Relationship.Length; index++) {
+							ItemDataRelationship relationship = itemData.Relationship[index];
+							if(index == 0) {
+								relationshipTypes += relationship.Type;
+								relationshipItemIDs += relationship.ItemId;
+							} else {
+								relationshipTypes += (", " + relationship.Type);
+								relationshipItemIDs += ", " + relationship.ItemId;
+							}
+						}
+						resultBuilder.Append("\t").Append(relationshipTypes);
+						resultBuilder.Append("\t").Append(relationshipItemIDs);
+					}
+					resultBuilder.Append("\t").Append(itemData.RankId);
+					resultBuilder.Append("\t").Append(itemData.Locked);
+					resultBuilder.Append("\t").Append(itemData.Cost);
+					resultBuilder.Append("\t").Append(itemData.Uses);
+					resultBuilder.Append("\t").Append(itemData.InventoryMax);
+					resultBuilder.Append("\t").Append(itemData.CreativePoints);
+				}
+				BTConsole.WriteLine(resultBuilder.ToString());
+				Debug.LogError(resultBuilder.ToString());
+			}
+		}
+
 		public static void InventorySaveCallback(bool success, object inUserData) {
 			if(success) {
 				BTConsole.WriteLine("CommonInventory Save successful");
@@ -1995,67 +2311,6 @@ public class BTCommands
 				}
 			}
 		}
-	}
-
-	public class BTInventoryClear
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "clear" },
-				new BTNoArgsInput(),
-				"clears the avatar's inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			CommonInventoryData.pInstance.Clear();
-			BTConsole.WriteLine("Inventory cleared.");
-		}
-	}
-
-	public class BTInventorySave
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "save" },
-				new BTNoArgsInput(),
-				"saves the avatar's inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			CommonInventoryData.pInstance.Save(
-				new InventorySaveEventHandler(BTInventoryEventHandler.InventorySaveCallback),
-				null,
-				null);
-		}
-	}
-
-	public class BTInventoryRemove
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "remove" },
-				new BTInventoryRemoveInput(),
-				"removes an Item from the Inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTInventoryRemoveInput cmdInput = (BTInventoryRemoveInput)input;
-			CommonInventoryData.pInstance.RemoveItem(
-				cmdInput.itemID,
-				cmdInput.updateServer,
-				cmdInput.quantity,
-				null);
-			BTConsole.WriteLine("Removed ItemID: " + cmdInput.itemID + " | Quantity: " + cmdInput.quantity);
-		}
 
 		public class BTInventoryRemoveInput : BTConsoleCommand.BTCommandInput
 		{
@@ -2101,29 +2356,6 @@ public class BTCommands
 				};
 			}
 		}
-	}
-
-	public class BTInventoryAdd
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "add" },
-				new BTInventoryAddInput(),
-				"adds an Item to the Inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTInventoryAddInput cmdInput = (BTInventoryAddInput)input;
-			CommonInventoryData.pInstance.AddItem(
-				cmdInput.itemID,
-				cmdInput.updateServer,
-				new InventoryItemDataEventHandler(BTInventoryEventHandler.InventoryItemDataCallback),
-				null,
-				cmdInput.quantity);
-		}
 
 		public class BTInventoryAddInput : BTConsoleCommand.BTCommandInput
 		{
@@ -2167,33 +2399,6 @@ public class BTCommands
 						typeof(bool)
 					)
 				};
-			}
-		}
-	}
-
-	public class BTInventoryAddRange
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "add", "range" },
-				new BTInventoryAddRangeInput(),
-				"adds one item of each itemID in the specified range to the inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTInventoryAddRangeInput cmdInput = (BTInventoryAddRangeInput)input;
-			bool isReverse = (cmdInput.idStart > cmdInput.idEnd);
-			int start = isReverse ? cmdInput.idEnd : cmdInput.idStart;
-			int end = isReverse ? cmdInput.idStart : cmdInput.idEnd;
-			for(int itemID = start; itemID <= end; itemID++) {
-				CommonInventoryData.pInstance.AddItem(
-					itemID,
-					cmdInput.updateServer,
-					new InventoryItemDataEventHandler(BTInventoryEventHandler.InventoryItemDataCallback),
-					null);
 			}
 		}
 
@@ -2241,37 +2446,6 @@ public class BTCommands
 				};
 			}
 		}
-	}
-
-	public class BTInventoryAddBattleItem
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "add", "battle", "item" },
-				new BTInventoryAddBattleItemInput(),
-				"adds 'BattleItems' to the inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTInventoryAddBattleItemInput cmdInput = (BTInventoryAddBattleItemInput)input;
-			AddBattleItemsRequest request = new AddBattleItemsRequest();
-			List<BattleItemTierMap> list = new List<BattleItemTierMap>();
-			BattleItemTierMap battleItemTierMap = new BattleItemTierMap();
-			battleItemTierMap.ItemID = cmdInput.itemID;
-			battleItemTierMap.Quantity = new int?(cmdInput.quantity);
-			if(cmdInput.itemTier != 0) {
-				battleItemTierMap.Tier = new ItemTier?((ItemTier)cmdInput.itemTier);
-			}
-			list.Add(battleItemTierMap);
-			request.BattleItemTierMaps = list;
-			WsWebService.BattleReadyItems(
-				request,
-				new WsServiceEventHandler(BTInventoryEventHandler.AddBattleItemCallback),
-				null);
-		}
 
 		public class BTInventoryAddBattleItemInput : BTConsoleCommand.BTCommandInput
 		{
@@ -2317,37 +2491,6 @@ public class BTCommands
 				};
 			}
 		}
-	}
-
-	public class BTInventoryShowID
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Inventory", "ItemID" },
-				new BTInventoryShowIDInput(),
-				"shows / hides ItemIDs in the Inventory",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTInventoryShowIDInput cmdInput = (BTInventoryShowIDInput)input;
-			if(cmdInput.show == null) {
-				CommonInventoryData.pShowItemID = !CommonInventoryData.pShowItemID;
-				string showString = CommonInventoryData.pShowItemID ? "shown" : "hidden";
-				BTConsole.WriteLine("ItemIDs are now " + showString);
-			} else {
-				bool show = (bool)cmdInput.show;
-				string showString = show ? "shown" : "hidden";
-				if(CommonInventoryData.pShowItemID == show) {
-					BTConsole.WriteLine("ItemIDs are already " + showString);
-				} else {
-					CommonInventoryData.pShowItemID = show;
-					BTConsole.WriteLine("ItemIDs are now " + showString);
-				}
-			}
-		}
 
 		public class BTInventoryShowIDInput : BTConsoleCommand.BTCommandInput
 		{
@@ -2366,6 +2509,39 @@ public class BTCommands
 						this.SetShow,
 						typeof(bool)
 					)
+				};
+			}
+		}
+
+		public class BTInventoryDumpItemDataInput : BTConsoleCommand.BTCommandInput
+		{
+			public int idStart;
+			public int idEnd;
+
+			private void SetIDStart(object idStart, bool isPresent) {
+				this.idStart = (int)idStart;
+			}
+
+			private void SetIDEnd(object idEnd, bool isPresent) {
+				this.idEnd = isPresent ? (int)idEnd : 1;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>(){
+					new BTConsoleCommand.BTConsoleArgument(
+						"idStart",
+						false,
+						"first ID to check",
+						this.SetIDStart,
+						typeof(int)
+					),
+					new BTConsoleCommand.BTConsoleArgument(
+						"idEnd",
+						false,
+						"last ID to check",
+						this.SetIDEnd,
+						typeof(int)
+					),
 				};
 			}
 		}
