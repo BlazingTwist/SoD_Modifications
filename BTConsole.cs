@@ -8,6 +8,8 @@ using UnityEngine;
 public class BTConsole : MonoBehaviour
 {
 	public static List<BTConsoleCommand> commandList = new List<BTConsoleCommand>();
+	public static bool showConsole = false;
+
 	private static string inputText = "help";
 	private static string consoleText = "";
 	private static Vector2 intellisenseScrollViewPos = Vector2.zero;
@@ -56,12 +58,14 @@ public class BTConsole : MonoBehaviour
 	private void Start() {
 		BTCommands.RegisterAll();
 		BTConsole.inputText = configDefaultCommand;
-		if(!configOpenByDefault) {
-			this.enabled = false;
-		}
+		BTConsole.showConsole = configOpenByDefault;
 	}
 
 	private void LateUpdate() {
+		if(BTDebugCamInputManager.IsKeyJustDown("ToggleConsole")) {
+			showConsole = !showConsole;
+		}
+
 		foreach(KeyValuePair<string, List<string>> kvp in configHolder.config.commandBinds) {
 			if(BTDebugCamInputManager.AreKeysJustDown(kvp.Value)) {
 				this.OnCommandSubmitted(kvp.Key, false);
@@ -70,6 +74,10 @@ public class BTConsole : MonoBehaviour
 	}
 
 	private void OnGUI() {
+		if(!showConsole) {
+			return;
+		}
+
 		// Check input to enable caching
 		inputChanged = !String.Equals(suggestionInput, inputText);
 		suggestionInput = inputText;
@@ -118,6 +126,9 @@ public class BTConsole : MonoBehaviour
 			}
 			if(Event.current.keyCode == KeyCode.DownArrow) {
 				SelectNextCommand();
+			}
+			if(Event.current.keyCode == KeyCode.Escape) {
+				GUI.FocusControl(null);
 			}
 		}
 		GUILayout.BeginHorizontal(Array.Empty<GUILayoutOption>());

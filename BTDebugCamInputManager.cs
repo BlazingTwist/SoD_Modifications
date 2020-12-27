@@ -151,10 +151,6 @@ public class BTDebugCamInputManager : MonoBehaviour{
 		if(IsKeyJustDown("PlayAllAnimations")){
 			PauseAllAnimations(false);
 		}
-
-		if(IsKeyJustDown("ToggleConsole")){
-			console.enabled = !console.enabled;
-		}
 		
 		DoLoadLevelCheck();
 		BTDebugCam.Update();

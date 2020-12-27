@@ -16,17 +16,7 @@ public class BTCommands
 		BTCommands.BTAchievementClanSet.Register();
 		BTCommands.BTAchievementSet.Register();
 		BTCommands.BTAchievementSetWeb.Register();
-		BTCommands.BTAvatarClearData.Register();
-		BTCommands.BTAvatarFix.Register();
-		BTCommands.BTAvatarGetPosition.Register();
-		BTCommands.BTAvatarGetStats.Register();
-		BTCommands.BTAvatarSaveData.Register();
-		BTCommands.BTAvatarSetSpeed.Register();
-		BTCommands.BTAvatarShowUserID.Register();
-		BTCommands.BTAvatarState.Register();
-		BTCommands.BTAvatarTeleportToObject.Register();
-		BTCommands.BTAvatarTeleportToPosition.Register();
-		BTCommands.BTAvatarUpdateFlyingData.Register();
+		BTCommands.BTAvatarCommands.Register();
 		BTCommands.BTBuildInfo.Register();
 		BTCommands.BTCls.Register();
 		BTCommands.BTCogsLoad.Register();
@@ -67,6 +57,7 @@ public class BTCommands
 		BTCommands.BTLevelGet.Register();
 		BTCommands.BTLevelLoad.Register();
 		BTCommands.BTMemProfiler.Register();
+		BTCommands.BTMissionCommands.Register();
 		BTCommands.BTMMOInfo.Register();
 		BTCommands.BTMMOUsersShow.Register();
 		BTCommands.BTMysteryChestSpawnAll.Register();
@@ -80,8 +71,7 @@ public class BTCommands
 		BTCommands.BTServerTimeGet.Register();
 		BTCommands.BTServerTimeReset.Register();
 		BTCommands.BTShowFlySpeedData.Register();
-		BTCommands.BTTaskComplete.Register();
-		BTCommands.BTTaskConsoleShow.Register();
+		BTCommands.BTTaskCommands.Register();
 		BTCommands.BTTutorialComplete.Register();
 		BTCommands.BTTutorialReset.Register();
 		BTCommands.BTTweakData.Register();
@@ -270,20 +260,129 @@ public class BTCommands
 		}
 	}
 
-	public class BTAvatarTeleportToObject
+	public class BTAvatarCommands
 	{
+		public static Vector3? previousPosition = null;
+
 		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "get", "position" },
+				new GetPositionInput(),
+				"prints the avatar's current position to the console",
+				OnExecuteGetPosition
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
 				new List<string>() { "avatar", "teleport", "object" },
-				new BTAvatarTeleportToObjectInput(),
+				new TeleportToObjectInput(),
 				"teleports the avatar to a given object",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
+				OnExecuteTeleportToObject
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "teleport", "position" },
+				new TeleportToPositionInput(),
+				"teleports the avatar to a given position",
+				OnExecuteTeleportToPosition
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "teleport", "camera" },
+				new BTNoArgsInput(),
+				"teleports the avatar to the main-camera",
+				OnExecuteTeleportCamera
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "teleport", "back" },
+				new BTNoArgsInput(),
+				"teleports the avatar to the 'previous' position",
+				OnExecuteTeleportBack
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "clear", "data" },
+				new BTNoArgsInput(),
+				"clears the avatarData (parts)",
+				OnExecuteClearData
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "fix" },
+				new BTNoArgsInput(),
+				"tries to fix the avatar by reloading the model without version/head information",
+				OnExecuteFix
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "save", "data" },
+				new BTNoArgsInput(),
+				"calls the AvatarData.Save function",
+				OnExecuteSaveData
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "show", "userID" },
+				new BTNoArgsInput(),
+				"prints the userID to console",
+				OnExecuteShowUserID
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "show", "state" },
+				new BTNoArgsInput(),
+				"prints information on the avatar's state",
+				OnExecuteShowState
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "set", "stat" },
+				new SetStatInput(),
+				"sets the statValue of a worn part",
+				OnExecuteSetStat
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "set", "speed" },
+				new SetSpeedInput(),
+				"sets the avatar speed",
+				OnExecuteSetSpeed
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "avatar", "update", "flyingData" },
+				new BTNoArgsInput(),
+				"invokes the avatar's 'OnUpdateAvatar' function",
+				OnExecuteUpdateFlyingData
+			));
 		}
 
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTAvatarTeleportToObjectInput cmdInput = (BTAvatarTeleportToObjectInput)input;
+		public static void OnExecuteGetPosition(BTConsoleCommand.BTCommandInput input) {
+			GetPositionInput cmdInput = (GetPositionInput)input;
+			if(AvAvatar.pObject == null) {
+				BTConsole.WriteLine("Unable to print position - Avatar not found");
+				return;
+			}
+			Vector3 currentPosition = AvAvatar.GetPosition();
+			if(cmdInput.makePreviousPosition) {
+				previousPosition = currentPosition;
+				BTConsole.WriteLine("Set previousPosition to: " + currentPosition.ToString());
+			} else {
+				BTConsole.WriteLine("Current Avatar Position: " + currentPosition.ToString());
+			}
+		}
+
+		public class GetPositionInput : BTConsoleCommand.BTCommandInput
+		{
+			public bool makePreviousPosition;
+
+			private void SetMakePreviousPosition(object makePreviousPosition, bool isPresent) {
+				this.makePreviousPosition = isPresent ? (bool)makePreviousPosition : false;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>(){
+					new BTConsoleCommand.BTConsoleArgument(
+						"makePreviousPosition",
+						true,
+						"if true, will set the previousPosition to the current position, defaults to false",
+						this.SetMakePreviousPosition,
+						typeof(bool)
+					)
+				};
+			}
+		}
+
+		public static void OnExecuteTeleportToObject(BTConsoleCommand.BTCommandInput input) {
+			TeleportToObjectInput cmdInput = (TeleportToObjectInput)input;
 			if(AvAvatar.pObject == null) {
 				BTConsole.WriteLine("Unable to teleport - Avatar not found");
 				return;
@@ -293,7 +392,7 @@ public class BTCommands
 				BTConsole.WriteLine("Unable to teleport - No GameObject of name " + cmdInput.objectName + " found");
 				return;
 			}
-			Vector3 previousPosition = AvAvatar.GetPosition();
+			previousPosition = AvAvatar.GetPosition();
 			Vector3 targetPosition = Vector3.zero;
 			if(!UtUtilities.FindPosNextToObject(out targetPosition, gameObject, cmdInput.distance)) {
 				BTConsole.WriteLine("Unable to teleport - No valid position within '" + cmdInput.distance + "' units of '" + cmdInput.objectName + "' found");
@@ -304,7 +403,7 @@ public class BTCommands
 			BTConsole.WriteLine("Avatar teleported from " + previousPosition.ToString() + " to " + targetPosition.ToString());
 		}
 
-		public class BTAvatarTeleportToObjectInput : BTConsoleCommand.BTCommandInput
+		public class TeleportToObjectInput : BTConsoleCommand.BTCommandInput
 		{
 			public string objectName;
 			public float distance;
@@ -336,33 +435,20 @@ public class BTCommands
 				};
 			}
 		}
-	}
 
-	public class BTAvatarTeleportToPosition
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "teleport", "position" },
-				new BTAvatarTeleportToPositionInput(),
-				"teleports the avatar to a given position",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTAvatarTeleportToPositionInput cmdInput = (BTAvatarTeleportToPositionInput)input;
+		public static void OnExecuteTeleportToPosition(BTConsoleCommand.BTCommandInput input) {
+			TeleportToPositionInput cmdInput = (TeleportToPositionInput)input;
 			if(AvAvatar.pObject == null) {
 				BTConsole.WriteLine("Unable to teleport - Avatar not found");
 				return;
 			}
-			Vector3 previousPosition = AvAvatar.GetPosition();
+			previousPosition = AvAvatar.GetPosition();
 			Vector3 targetPosition = new Vector3(cmdInput.x, cmdInput.y, cmdInput.z);
 			AvAvatar.TeleportTo(targetPosition);
 			BTConsole.WriteLine("Avatar teleported from " + previousPosition.ToString() + " to " + targetPosition.ToString());
 		}
 
-		public class BTAvatarTeleportToPositionInput : BTConsoleCommand.BTCommandInput
+		public class TeleportToPositionInput : BTConsoleCommand.BTCommandInput
 		{
 			public float x;
 			public float y;
@@ -406,61 +492,36 @@ public class BTCommands
 				};
 			}
 		}
-	}
 
-	public class BTAvatarGetPosition
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "get", "position" },
-				new BTNoArgsInput(),
-				"prints the avatar's current position to the console",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			if(AvAvatar.pObject == null) {
-				BTConsole.WriteLine("Unable to print position - Avatar not found");
+		public static void OnExecuteTeleportCamera(BTConsoleCommand.BTCommandInput input) {
+			Camera mainCamera = BTDebugCam.FindMainCamera();
+			if(mainCamera == null) {
+				BTConsole.WriteLine("Unable to teleport - mainCamera not found.");
 				return;
 			}
-			Vector3 currentPosition = AvAvatar.GetPosition();
-			BTConsole.WriteLine("Current Avatar Position: " + currentPosition.ToString());
-		}
-	}
-
-	public class BTAvatarClearData
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "clear", "data" },
-				new BTNoArgsInput(),
-				"clears the avatarData (parts)",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
+			previousPosition = AvAvatar.GetPosition();
+			Vector3 targetPosition = mainCamera.transform.position;
+			AvAvatar.TeleportTo(targetPosition);
+			BTConsole.WriteLine("Avatar teleported from " + previousPosition.ToString() + " to " + targetPosition.ToString());
 		}
 
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteTeleportBack(BTConsoleCommand.BTCommandInput input) {
+			if(previousPosition == null) {
+				BTConsole.WriteLine("Unable to teleport - no previous position known. (Only gets set when teleporting using the console commands)");
+				return;
+			}
+			Vector3 targetPosition = previousPosition.Value;
+			previousPosition = AvAvatar.GetPosition();
+			AvAvatar.TeleportTo(targetPosition);
+			BTConsole.WriteLine("Avatar teleported from " + previousPosition.ToString() + " to " + targetPosition.ToString());
+		}
+
+		public static void OnExecuteClearData(BTConsoleCommand.BTCommandInput input) {
 			AvatarData.Clear();
 			BTConsole.WriteLine("Avatar parts cleared");
 		}
-	}
 
-	public class BTAvatarFix
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "fix" },
-				new BTNoArgsInput(),
-				"tries to fix the avatar by reloading the model without version/head information",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteFix(BTConsoleCommand.BTCommandInput input) {
 			AvatarData.pInstanceInfo.RestorePartData();
 			AvatarData avatarData = AvatarData.CreateDefault(AvatarData.pInstance.GenderType);
 			List<AvatarDataPart> partList = new List<AvatarDataPart>();
@@ -477,79 +538,27 @@ public class BTCommands
 			AvatarData.pInstanceInfo.LoadBundlesAndUpdateAvatar();
 			BTConsole.WriteLine("Avatar data reset - excluded version and head");
 		}
-	}
 
-	public class BTAvatarSaveData
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "save", "data" },
-				new BTNoArgsInput(),
-				"calls the AvatarData.Save function",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteSaveData(BTConsoleCommand.BTCommandInput input) {
 			AvatarData.Save();
 			BTConsole.WriteLine("Avatar data reset - excluded version and head");
 		}
-	}
 
-	public class BTAvatarShowUserID
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "show", "userID" },
-				new BTNoArgsInput(),
-				"prints the userID to console",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteShowUserID(BTConsoleCommand.BTCommandInput input) {
 			if(UserInfo.pInstance != null) {
 				BTConsole.WriteLine("UserID: " + UserInfo.pInstance.UserID);
 			} else {
 				BTConsole.WriteLine("can't print userID - no UserInfo found.");
 			}
 		}
-	}
 
-	public class BTAvatarState
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "show", "state" },
-				new BTNoArgsInput(),
-				"prints information on the avatar's state",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteShowState(BTConsoleCommand.BTCommandInput input) {
 			BTConsole.WriteLine("CurrentState: " + AvAvatar.pState + " | SubState: " + AvAvatar.pSubState);
 			BTConsole.WriteLine("Old State: " + AvAvatar.pPrevState);
 		}
-	}
 
-	public class BTAvatarGetStats
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "set", "stat" },
-				new BTAvatarGetStatsInput(),
-				"sets the statValue of a worn part",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTAvatarGetStatsInput cmdInput = (BTAvatarGetStatsInput)input;
+		public static void OnExecuteSetStat(BTConsoleCommand.BTCommandInput input) {
+			SetStatInput cmdInput = (SetStatInput)input;
 			if(AvatarData.pInstanceInfo.FindPart(cmdInput.part) == null) {
 				BTConsole.WriteLine("Part " + cmdInput.part + " not found");
 				return;
@@ -587,7 +596,7 @@ public class BTCommands
 			}
 		}
 
-		public class BTAvatarGetStatsInput : BTConsoleCommand.BTCommandInput
+		public class SetStatInput : BTConsoleCommand.BTCommandInput
 		{
 			public string part;
 			public int statID;
@@ -631,22 +640,9 @@ public class BTCommands
 				};
 			}
 		}
-	}
 
-	public class BTAvatarSetSpeed
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "set", "speed" },
-				new BTAvatarSetSpeedInput(),
-				"sets the avatar speed",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTAvatarSetSpeedInput cmdInput = (BTAvatarSetSpeedInput)input;
+		public static void OnExecuteSetSpeed(BTConsoleCommand.BTCommandInput input) {
+			SetSpeedInput cmdInput = (SetSpeedInput)input;
 			if(AvAvatar.pObject == null) {
 				BTConsole.WriteLine("error - Avatar not found, can't set speed");
 				return;
@@ -661,7 +657,7 @@ public class BTCommands
 			BTConsole.WriteLine("changed avatar speed from '" + previousSpeed + "' to '" + cmdInput.speed + "'");
 		}
 
-		public class BTAvatarSetSpeedInput : BTConsoleCommand.BTCommandInput
+		public class SetSpeedInput : BTConsoleCommand.BTCommandInput
 		{
 			public float speed;
 
@@ -681,21 +677,8 @@ public class BTCommands
 				};
 			}
 		}
-	}
 
-	public class BTAvatarUpdateFlyingData
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "avatar", "update", "flyingData" },
-				new BTNoArgsInput(),
-				"invokes the avatar's 'OnUpdateAvatar' function",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
+		public static void OnExecuteUpdateFlyingData(BTConsoleCommand.BTCommandInput input) {
 			AvAvatar.pObject.GetComponent<AvAvatarController>().OnUpdateAvatar();
 			BTConsole.WriteLine("FlyingData updated.");
 		}
@@ -1007,7 +990,6 @@ public class BTCommands
 		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
 			BTConsole.WriteLine("GPU name - " + SystemInfo.graphicsDeviceName);
 			BTConsole.WriteLine("  Memory - " + SystemInfo.graphicsMemorySize);
-			BTConsole.WriteLine("  Supports ImageEffects - " + SystemInfo.supportsImageEffects.ToString());
 		}
 	}
 
@@ -2078,24 +2060,20 @@ public class BTCommands
 			int end = isReverse ? cmdInput.idStart : cmdInput.idEnd;
 
 			ItemDataEventHandler callback = new ItemDataEventHandler(InventoryDumpItemDataCallback);
-			BTInventoryDumpItemDataProgress progress = new BTInventoryDumpItemDataProgress(start, end);
-
-			for(int itemID = start; itemID <= end; itemID++) {
-				ItemData.Load(itemID, callback, progress);
-			}
+			BTInventoryDumpItemDataProgress progress = new BTInventoryDumpItemDataProgress(callback, start, end, cmdInput.batchSize);
+			progress.RequestNextBatch();
 		}
 
 		public static void InventoryDumpItemDataCallback(int itemID, ItemData itemData, object inUserData) {
 			if(inUserData == null) {
-				BTConsole.WriteLine("  error - callback for ItemDump went missing, cannot dump!");
+				BTConsole.WriteLine("  ERROR - callback for ItemDump went missing, cannot dump!");
 				return;
 			}
 			BTInventoryDumpItemDataProgress progress = (BTInventoryDumpItemDataProgress)inUserData;
 			if(itemData == null || itemData.ItemID != itemID) {
-				BTConsole.WriteLine("  itemID: " + itemID + " yielded no ItemData");
+				BTConsole.WriteLine("  WARNING - itemID: " + itemID + " yielded no ItemData");
 				progress.AddLoadedItem(itemID, null);
 			} else {
-				BTConsole.WriteLine("  loaded item for itemID: " + itemID);
 				progress.AddLoadedItem(itemID, itemData);
 			}
 		}
@@ -2103,19 +2081,45 @@ public class BTCommands
 		public class BTInventoryDumpItemDataProgress
 		{
 			public Dictionary<int, ItemData> loadedItemData;
+			public ItemDataEventHandler callback;
 			public int startID;
 			public int endID;
+			public int batchSize;
 
-			public BTInventoryDumpItemDataProgress(int startID, int endID) {
+			private int batchProgress = 0;
+
+			public BTInventoryDumpItemDataProgress(ItemDataEventHandler callback, int startID, int endID, int batchSize) {
 				loadedItemData = new Dictionary<int, ItemData>();
+				this.callback = callback;
 				this.startID = startID;
 				this.endID = endID;
+				this.batchSize = batchSize;
+			}
+
+			public void RequestNextBatch() {
+				int loadedItemDataCount = loadedItemData.Count;
+				int requestsRemainingCount = (endID - startID + 1) - loadedItemDataCount;
+				int batchStartID = startID + loadedItemDataCount;
+				int batchEndID;
+				if(requestsRemainingCount < batchSize) {
+					batchEndID = endID;
+				} else {
+					batchEndID = batchStartID + batchSize - 1;
+				}
+				BTConsole.WriteLine(" requesting IDs " + batchStartID + " - " + batchEndID);
+				this.batchProgress = 0;
+				for(int i = batchStartID; i <= batchEndID; i++) {
+					ItemData.Load(i, callback, this);
+				}
 			}
 
 			public void AddLoadedItem(int itemID, ItemData itemData) {
 				loadedItemData[itemID] = itemData;
+				batchProgress++;
 				if(AllItemsLoaded()) {
 					OnAllItemsLoaded();
+				} else if(batchProgress >= batchSize) {
+					RequestNextBatch();
 				}
 			}
 
@@ -2146,6 +2150,8 @@ public class BTCommands
 					.Append("\t").Append("RelationshipCount")
 					.Append("\t").Append("Relationship.Type")
 					.Append("\t").Append("Relationship.ItemID")
+					.Append("\t").Append("Relationship.Weight")
+					.Append("\t").Append("Relationship.Quantity")
 					.Append("\t").Append("RankID")
 					.Append("\t").Append("Locked")
 					.Append("\t").Append("Cost")
@@ -2163,18 +2169,18 @@ public class BTCommands
 					}
 					resultBuilder.Append("\n");
 					resultBuilder.Append(itemData.ItemID);
-					resultBuilder.Append("\t").Append(itemData.ItemName);
-					resultBuilder.Append("\t").Append(itemData.AssetName);
-					resultBuilder.Append("\t").Append(itemData.IconName);
+					resultBuilder.Append("\t").Append(ReplaceNewline(itemData.ItemName));
+					resultBuilder.Append("\t").Append(ReplaceNewline(itemData.AssetName));
+					resultBuilder.Append("\t").Append(ReplaceNewline(itemData.IconName));
 					ItemDataRollover rollover = itemData.Rollover;
 					if(rollover == null) {
 						resultBuilder.Append("\t\t");
 					} else {
-						resultBuilder.Append("\t").Append(rollover.DialogName);
-						resultBuilder.Append("\t").Append(rollover.Bundle);
+						resultBuilder.Append("\t").Append(ReplaceNewline(rollover.DialogName));
+						resultBuilder.Append("\t").Append(ReplaceNewline(rollover.Bundle));
 					}
-					resultBuilder.Append("\t").Append(itemData.Description);
-					resultBuilder.Append("\t").Append(itemData.Geometry2);
+					resultBuilder.Append("\t").Append(ReplaceNewline(itemData.Description));
+					resultBuilder.Append("\t").Append(ReplaceNewline(itemData.Geometry2));
 					if(itemData.Texture == null) {
 						resultBuilder.Append("\t").Append("0");
 						resultBuilder.Append("\t\t\t\t");
@@ -2198,10 +2204,10 @@ public class BTCommands
 								offsetY += (", " + ((texture.OffsetY == null) ? "null" : texture.OffsetY.Value.ToString()));
 							}
 						}
-						resultBuilder.Append("\t").Append(textureNames);
-						resultBuilder.Append("\t").Append(textureTypeNames);
-						resultBuilder.Append("\t").Append(offsetX);
-						resultBuilder.Append("\t").Append(offsetY);
+						resultBuilder.Append("\t").Append(ReplaceNewline(textureNames));
+						resultBuilder.Append("\t").Append(ReplaceNewline(textureTypeNames));
+						resultBuilder.Append("\t").Append(ReplaceNewline(offsetX));
+						resultBuilder.Append("\t").Append(ReplaceNewline(offsetY));
 					}
 					if(itemData.Category == null) {
 						resultBuilder.Append("\t").Append("0");
@@ -2223,9 +2229,9 @@ public class BTCommands
 								iconNames += (", " + category.IconName);
 							}
 						}
-						resultBuilder.Append("\t").Append(categoryIDs);
-						resultBuilder.Append("\t").Append(categoryNames);
-						resultBuilder.Append("\t").Append(iconNames);
+						resultBuilder.Append("\t").Append(ReplaceNewline(categoryIDs));
+						resultBuilder.Append("\t").Append(ReplaceNewline(categoryNames));
+						resultBuilder.Append("\t").Append(ReplaceNewline(iconNames));
 					}
 					if(itemData.Relationship == null) {
 						resultBuilder.Append("\t").Append("0");
@@ -2234,18 +2240,26 @@ public class BTCommands
 						resultBuilder.Append("\t").Append(itemData.Relationship.Length);
 						string relationshipTypes = "";
 						string relationshipItemIDs = "";
+						string relationshipWeigths = "";
+						string relationshipQuantities = "";
 						for(int index = 0; index < itemData.Relationship.Length; index++) {
 							ItemDataRelationship relationship = itemData.Relationship[index];
 							if(index == 0) {
 								relationshipTypes += relationship.Type;
 								relationshipItemIDs += relationship.ItemId;
+								relationshipWeigths += relationship.Weight;
+								relationshipQuantities += relationship.Quantity;
 							} else {
 								relationshipTypes += (", " + relationship.Type);
-								relationshipItemIDs += ", " + relationship.ItemId;
+								relationshipItemIDs += (", " + relationship.ItemId);
+								relationshipWeigths += (", " + relationship.Weight);
+								relationshipQuantities += (", " + relationship.Quantity);
 							}
 						}
-						resultBuilder.Append("\t").Append(relationshipTypes);
-						resultBuilder.Append("\t").Append(relationshipItemIDs);
+						resultBuilder.Append("\t").Append(ReplaceNewline(relationshipTypes));
+						resultBuilder.Append("\t").Append(ReplaceNewline(relationshipItemIDs));
+						resultBuilder.Append("\t").Append(ReplaceNewline(relationshipWeigths));
+						resultBuilder.Append("\t").Append(ReplaceNewline(relationshipQuantities));
 					}
 					resultBuilder.Append("\t").Append(itemData.RankId);
 					resultBuilder.Append("\t").Append(itemData.Locked);
@@ -2257,6 +2271,13 @@ public class BTCommands
 				BTConsole.WriteLine(resultBuilder.ToString());
 				Debug.LogError(resultBuilder.ToString());
 			}
+		}
+
+		private static string ReplaceNewline(string input) {
+			if(input == null) {
+				return "";
+			}
+			return input.Replace("\n", "\\n");
 		}
 
 		public static void InventorySaveCallback(bool success, object inUserData) {
@@ -2517,13 +2538,18 @@ public class BTCommands
 		{
 			public int idStart;
 			public int idEnd;
+			public int batchSize;
 
 			private void SetIDStart(object idStart, bool isPresent) {
 				this.idStart = (int)idStart;
 			}
 
 			private void SetIDEnd(object idEnd, bool isPresent) {
-				this.idEnd = isPresent ? (int)idEnd : 1;
+				this.idEnd = (int)idEnd;
+			}
+
+			private void SetBatchSize(object batchSize, bool isPresent) {
+				this.batchSize = isPresent ? (int)batchSize : 100;
 			}
 
 			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
@@ -2542,6 +2568,13 @@ public class BTCommands
 						this.SetIDEnd,
 						typeof(int)
 					),
+					new BTConsoleCommand.BTConsoleArgument(
+						"batchSize",
+						true,
+						"amount of simultaneous server calls to send, defaults to 100",
+						this.SetBatchSize,
+						typeof(int)
+					)
 				};
 			}
 		}
@@ -2620,20 +2653,25 @@ public class BTCommands
 		}
 	}
 
-	public class BTTaskComplete
+	public class BTTaskCommands
 	{
 		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
+			BTConsole.AddCommand(new BTConsoleCommand(
 				new List<string>() { "Task", "Complete" },
-				new BTTaskCompleteInput(),
+				new CompleteInput(),
 				"Completes an active Task",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
+				OnExecuteComplete
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Task", "Console" },
+				new ConsoleShowInput(),
+				"shows / hides the Task Console",
+				OnExecuteConsoleShow
+			));
 		}
 
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTTaskCompleteInput cmdInput = (BTTaskCompleteInput)input;
+		public static void OnExecuteComplete(BTConsoleCommand.BTCommandInput input) {
+			CompleteInput cmdInput = (CompleteInput)input;
 			if(MissionManager.pInstance == null) {
 				BTConsole.WriteLine("error - MissionManager not ready");
 				return;
@@ -2647,7 +2685,7 @@ public class BTCommands
 			BTConsole.WriteLine("Task " + cmdInput.taskID + " completed.");
 		}
 
-		public class BTTaskCompleteInput : BTConsoleCommand.BTCommandInput
+		public class CompleteInput : BTConsoleCommand.BTCommandInput
 		{
 			public int taskID;
 
@@ -2667,22 +2705,9 @@ public class BTCommands
 				};
 			}
 		}
-	}
 
-	public class BTTaskConsoleShow
-	{
-		public static void Register() {
-			BTConsoleCommand command = new BTConsoleCommand(
-				new List<string>() { "Task", "Console" },
-				new BTTaskConsoleShowInput(),
-				"shows / hides the Task Console",
-				OnExecute
-			);
-			BTConsole.AddCommand(command);
-		}
-
-		public static void OnExecute(BTConsoleCommand.BTCommandInput input) {
-			BTTaskConsoleShowInput cmdInput = (BTTaskConsoleShowInput)input;
+		public static void OnExecuteConsoleShow(BTConsoleCommand.BTCommandInput input) {
+			ConsoleShowInput cmdInput = (ConsoleShowInput)input;
 			TaskStatusConsole taskConsole = KAConsole.mObject.GetComponent<TaskStatusConsole>();
 			if(taskConsole == null) {
 				BTConsole.WriteLine("Unable to find Task Console.");
@@ -2697,7 +2722,7 @@ public class BTCommands
 			}
 		}
 
-		public class BTTaskConsoleShowInput : BTConsoleCommand.BTCommandInput
+		public class ConsoleShowInput : BTConsoleCommand.BTCommandInput
 		{
 			public bool show;
 
@@ -2715,6 +2740,321 @@ public class BTCommands
 						typeof(bool)
 					)
 				};
+			}
+		}
+	}
+
+	public class BTMissionCommands
+	{
+		public static void Register() {
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Init" },
+				new BTNoArgsInput(),
+				"initializes the MissionManager",
+				OnExecuteInit
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Reset" },
+				new BTNoArgsInput(),
+				"resets the MissionManager",
+				OnExecuteReset
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Save" },
+				new SaveInput(),
+				"enables/disables mission saving",
+				OnExecuteSave
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Fail" },
+				new FailInput(),
+				"enables/disables automatic mission failing",
+				OnExecuteFail
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "SyncDB" },
+				new SyncDBInput(),
+				"enables/disables database synchronisation",
+				OnExecuteSyncDB
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Unlock" },
+				new UnlockInput(),
+				"when enabled, missions ignore all locking-constraints (e.g. winter-missions become available during summer)",
+				OnExecuteUnlock
+			));
+			BTConsole.AddCommand(new BTConsoleCommand(
+				new List<string>() { "Mission", "Accept" },
+				new AcceptInput(),
+				"Accepts a Mission",
+				OnExecuteAccept
+			));
+		}
+
+		public static void OnExecuteInit(BTConsoleCommand.BTCommandInput input) {
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			if(MissionManager.pIsReady) {
+				BTConsole.WriteLine("MissionManager is already initialized.");
+				return;
+			}
+			MissionManager.Init();
+			BTConsole.WriteLine("MissionManager initialized.");
+		}
+
+		public static void OnExecuteReset(BTConsoleCommand.BTCommandInput input) {
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			MissionManager.Reset();
+			BTConsole.WriteLine("Missions reset.");
+		}
+
+		public static void OnExecuteSave(BTConsoleCommand.BTCommandInput input) {
+			SaveInput cmdInput = (SaveInput)input;
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			bool previousValue = Mission.pSave;
+			bool newValue = cmdInput.save;
+			if(previousValue == newValue) {
+				BTConsole.WriteLine("MissionSaving already was: " + newValue);
+			} else {
+				Mission.pSave = newValue;
+				BTConsole.WriteLine("Changed MissionSaving from: " + previousValue + " | to: " + newValue);
+			}
+		}
+
+		public class SaveInput : BTConsoleCommand.BTCommandInput
+		{
+			public bool save;
+
+			private void SetSave(object save, bool isPresent) {
+				this.save = isPresent ? (bool)save : true;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>() {
+					new BTConsoleCommand.BTConsoleArgument(
+						"save",
+						true,
+						"enable mission saving or not - defaults to true",
+						SetSave,
+						typeof(bool)
+					)
+				};
+			}
+		}
+
+		public static void OnExecuteFail(BTConsoleCommand.BTCommandInput input) {
+			FailInput cmdInput = (FailInput)input;
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			bool previousValue = Mission.pFail;
+			bool newValue = cmdInput.fail;
+			if(previousValue == newValue) {
+				BTConsole.WriteLine("MissionFailing already was: " + newValue);
+			} else {
+				Mission.pFail = newValue;
+				BTConsole.WriteLine("Changed MissionFailing from: " + previousValue + " | to: " + newValue);
+			}
+		}
+
+		public class FailInput : BTConsoleCommand.BTCommandInput
+		{
+			public bool fail;
+
+			private void SetFail(object fail, bool isPresent) {
+				this.fail = isPresent ? (bool)fail : false;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>() {
+					new BTConsoleCommand.BTConsoleArgument(
+						"fail",
+						true,
+						"enable mission failing or not - defaults to false",
+						SetFail,
+						typeof(bool)
+					)
+				};
+			}
+		}
+
+		public static void OnExecuteSyncDB(BTConsoleCommand.BTCommandInput input) {
+			SyncDBInput cmdInput = (SyncDBInput)input;
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			bool previousValue = Mission.pSyncDB;
+			bool newValue = cmdInput.syncDB;
+			if(previousValue == newValue) {
+				BTConsole.WriteLine("SyncDB already was: " + newValue);
+			} else {
+				Mission.pSyncDB = newValue;
+				BTConsole.WriteLine("Changed SyncDB from: " + previousValue + " | to: " + newValue);
+			}
+		}
+
+		public class SyncDBInput : BTConsoleCommand.BTCommandInput
+		{
+			public bool syncDB;
+
+			private void SetSyncDB(object syncDB, bool isPresent) {
+				this.syncDB = isPresent ? (bool)syncDB : true;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>() {
+					new BTConsoleCommand.BTConsoleArgument(
+						"syncDB",
+						true,
+						"enable database synchronisation or not - defaults to true",
+						SetSyncDB,
+						typeof(bool)
+					)
+				};
+			}
+		}
+
+		public static void OnExecuteUnlock(BTConsoleCommand.BTCommandInput input) {
+			UnlockInput cmdInput = (UnlockInput)input;
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			bool previousValue = !Mission.pLocked;
+			bool newValue = cmdInput.unlock;
+			if(previousValue == newValue) {
+				BTConsole.WriteLine("Unlock already was: " + newValue);
+			} else {
+				Mission.pLocked = !newValue;
+				BTConsole.WriteLine("Changed Unlock from: " + previousValue + " | to: " + newValue);
+			}
+		}
+
+		public class UnlockInput : BTConsoleCommand.BTCommandInput
+		{
+			public bool unlock;
+
+			private void SetUnlock(object unlock, bool isPresent) {
+				this.unlock = isPresent ? (bool)unlock : false;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>() {
+					new BTConsoleCommand.BTConsoleArgument(
+						"unlock",
+						true,
+						"ignore mission constraints or not - defaults to false",
+						SetUnlock,
+						typeof(bool)
+					)
+				};
+			}
+		}
+
+		public static void OnExecuteAccept(BTConsoleCommand.BTCommandInput input) {
+			AcceptInput cmdInput = (AcceptInput)input;
+			if(MissionManager.pInstance == null) {
+				BTConsole.WriteLine("error - no Instance of MissionManager found.");
+				return;
+			}
+			Mission mission = MissionManager.pInstance.GetMission(cmdInput.missionID);
+			if(mission == null) {
+				BTConsole.WriteLine("unable to accept mission - no mission of id '" + cmdInput.missionID + "' found.");
+				return;
+			}
+			if(mission.pStaticDataReady) {
+				BTConsole.WriteLine("Mission '" + cmdInput.missionID + "' found and ready - accepting Mission...");
+				MissionManager.pInstance.AcceptMission(
+					cmdInput.missionID,
+					new AcceptMissionCallback(AcceptMissionCallback)
+				);
+			} else {
+				BTConsole.WriteLine("Mission '" + cmdInput.missionID + "' found but not ready - loading MissionData...");
+				MissionManager.pInstance.LoadMissionData(
+					-1,
+					new MissionStaticLoadCallback(OnLoadAcceptMissionData),
+					cmdInput.missionID,
+					false
+				);
+			}
+		}
+
+		public class AcceptInput : BTConsoleCommand.BTCommandInput
+		{
+			public int missionID;
+
+			private void SetMissionID(object missionID, bool isPresent) {
+				this.missionID = isPresent ? (int)missionID : -1;
+			}
+
+			protected override List<BTConsoleCommand.BTConsoleArgument> BuildConsoleArguments() {
+				return new List<BTConsoleCommand.BTConsoleArgument>() {
+					new BTConsoleCommand.BTConsoleArgument(
+						"missionID",
+						false,
+						"missionID to accept",
+						SetMissionID,
+						typeof(int)
+					)
+				};
+			}
+		}
+
+		public static void OnLoadAcceptMissionData(List<Mission> missions) {
+			if(missions == null || missions.Count <= 0) {
+				BTConsole.WriteLine("unable to load missionData - no missions found.");
+				return;
+			}
+			Mission mission = missions[0];
+			BTConsole.WriteLine("MissionData loaded for id '" + mission.MissionID + "' - accepting Mission...");
+			MissionManager.pInstance.AcceptMission(
+				mission.MissionID,
+				new AcceptMissionCallback(AcceptMissionCallback)
+			);
+		}
+
+		public static void AcceptMissionCallback(bool success, Mission mission) {
+			if(mission == null) {
+				BTConsole.WriteLine("error - received AcceptMission callback for `null` mission");
+				return;
+			}
+			if(!success) {
+				BTConsole.WriteLine("error - AcceptMissionCallback was unsuccessful for mission '" + mission.MissionID + "'");
+				return;
+			}
+			Mission rootMission = MissionManager.pInstance.GetRootMission(mission);
+			MarkPrerequisiteMissionsComplete(rootMission);
+			if(rootMission.pData.Hidden) {
+				BTConsole.WriteLine("warning - rootMissionData was hidden, unable to set active task");
+				return;
+			}
+			List<Task> list = new List<Task>();
+			MissionManager.pInstance.GetNextTask(mission, ref list);
+			if(list.Count <= 0) {
+				BTConsole.WriteLine("warning - MissionManager found no next task, unable to set active task");
+				return;
+			}
+			MissionManagerDO.SetCurrentActiveTask(list[0].TaskID, true);
+		}
+
+		public static void MarkPrerequisiteMissionsComplete(Mission mission) {
+			List<int> prerequisites = mission.MissionRule.GetPrerequisites<int>(PrerequisiteRequiredType.Mission);
+			for(int i = 0; i < prerequisites.Count; i++) {
+				Mission prerequisiteMission = MissionManager.pInstance.GetMission(prerequisites[i]);
+				if(prerequisiteMission != null) {
+					prerequisiteMission.Completed = 1;
+					MarkPrerequisiteMissionsComplete(prerequisiteMission);
+				}
 			}
 		}
 	}

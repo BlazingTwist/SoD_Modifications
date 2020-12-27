@@ -9,6 +9,9 @@ public class BTHackConfig{
 	public bool fastOpenInventoryChests = false;
 	
 	public bool infiniteDragonMeter = false;
+
+	public bool eelRoast_spawnAllEels = false;
+	public bool eelRoast_infiniteEels = false;
 	
 	public bool fireball_infiniteShots = false;
 	public bool fireball_cooldownOverride = false;
