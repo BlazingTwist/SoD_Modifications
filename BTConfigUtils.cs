@@ -8,6 +8,12 @@ using System.Reflection;
 
 public class BTConfigUtils
 {
+	public static void LoadConfig<configType>(TextReader reader, configType instance) {
+		ConfigNode rootNode = new ConfigNode();
+		rootNode.listValues = BuildNodes(Tokenize(reader));
+		ParseObject(rootNode, typeof(configType), (Object)instance);
+	}
+
 	public static configType LoadConfig<configType>(TextReader reader) {
 		return BuildConfig<configType>(BuildNodes(Tokenize(reader)));
 	}

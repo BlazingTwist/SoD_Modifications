@@ -25,6 +25,7 @@ public class BTHackConfig{
 	
 	public float controls_fastMovementFactor = 0f;
 	public bool controls_useSpeedHacks = false;
+	public bool controls_useFlightStatsOverride = false;
 	
 	public int stableMission_forceMissionID = -1;
 	public bool stableMission_instantCompletion = false;

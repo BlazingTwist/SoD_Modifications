@@ -13,12 +13,14 @@ public class BTConfigHolder{
 	private static string configFileName = "config.cs";
 	private static string hackConfigFileName = "hackConfig.cs";
 	private static string hackEnableFileName = "enableHacks.7bTRGia50U";
+	private static string flightStatsFileName = "flightStatsOverride.cs";
 	
 	private static string logFileName = "log.txt";
 	
 	private static ILogger logger = Debug.unityLogger;
 	public BTConfig config = null;
 	public BTHackConfig hackConfig = null;
+	public AvAvatarFlyingData flightStats = null;
 	
 	public void LogMessage(LogType logType, object message){
 		logger.Log(logType, message);
@@ -76,18 +78,10 @@ public class BTConfigHolder{
 	}
 	
 	public void LoadConfigs(){
-		LoadConfig();
+		config = LoadConfigFile<BTConfig>(configFileName, config);
 		LoadHackConfig();
-	}
-	
-	private void LoadConfig(){
-		try{
-			using(StreamReader reader = File.OpenText((basePath + configFileName).Replace('/', Path.DirectorySeparatorChar))){
-				config = BTConfigUtils.LoadConfig<BTConfig>(reader);
-			}
-		}catch(Exception e){
-			LogMessage(LogType.Error, "Encountered an exception during parsing of the config!\nException: " + e.ToString());
-			config = null;
+		if(hackConfig != null && hackConfig.controls_useFlightStatsOverride) {
+			flightStats = LoadConfigFile<AvAvatarFlyingData>(flightStatsFileName, flightStats);
 		}
 	}
 	
@@ -108,6 +102,27 @@ public class BTConfigHolder{
 		}catch(Exception e){
 			LogMessage(LogType.Error, "Encountered an exception during parsing of the hackConfig!\nException: " + e.ToString());
 			hackConfig = null;
+		}
+	}
+
+	private T LoadConfigFile<T>(string fileName, T instance) {
+		String filePath = (BTConfigHolder.basePath + fileName).Replace('/', Path.DirectorySeparatorChar);
+		if(!File.Exists(filePath)){
+			return default(T);
+		}
+
+		try {
+			using(StreamReader reader = File.OpenText(filePath)){
+				if(instance == null) {
+					return BTConfigUtils.LoadConfig<T>(reader);
+				} else {
+					BTConfigUtils.LoadConfig<T>(reader, instance);
+					return instance;
+				}
+			}
+		}catch(Exception e) {
+			this.LogMessage(LogType.Error, "Encountered an exception during parsing of the file `" + fileName + "`!\nException: " + e.ToString());
+			return default(T);
 		}
 	}
 }
